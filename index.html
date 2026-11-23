@@ -42,7 +42,9 @@ h2{font-size:1.15rem}
 .time{color:var(--mute);font-size:.85rem;width:66px;flex:none;white-space:nowrap}
 .name{flex:1}
 .name.off{color:var(--mute);text-decoration:line-through}
-.x{border:0;background:none;color:var(--mute);cursor:pointer;font:inherit;font-size:.8rem;padding:4px}
+.x{border:0;background:none;color:var(--mute);cursor:pointer;font:inherit;font-size:.75rem;padding:3px 0;text-align:right}
+.acts{display:flex;flex-direction:column;align-items:flex-end;flex:none}
+.rest{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 form{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 input,select{padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
 input[type=text]{flex:1;min-width:140px}
@@ -84,6 +86,7 @@ input[type=number]{width:72px}
 <section class="card">
   <div class="head"><h2 id="dtitle"></h2><button class="btn" id="hoybtn">Ir a hoy</button></div>
   <div id="items"></div>
+  <div id="hid"></div>
   <form id="f">
     <input type="time" id="ft" value="09:00" aria-label="Hora">
     <input type="text" id="fn" placeholder="Nueva tarea" aria-label="Nueva tarea" required>
@@ -122,6 +125,23 @@ var BOOKS=[{id:"jp",t:"Jurassic Park",total:400},{id:"ot",t:"Objetos trashumante
 var S={items:null,done:{},books:{}};
 try{var r=localStorage.getItem("agenda-v2");if(r)S=JSON.parse(r)}catch(e){}
 S.items=S.items||DEF;S.done=S.done||{};S.books=S.books||{};
+if((S.v||1)<3){
+  var WK=["d1","d2","d3","d4","d5","d6"];
+  S.items.forEach(function(i){if(WK.indexOf(i.id)>-1)i.wk=1});
+  [{id:"w1",t:"10:30",n:"Levantarme y desayunar"},{id:"w2",t:"11:00",n:"Comprar la comida y recados"},{id:"w3",t:"12:00",n:"Bloque 1: estudiar programación",main:1},{id:"w4",t:"13:30",n:"Almuerzo y descanso"},{id:"w5",t:"14:00",n:"Bloque 2: practicar ejercicios",main:1}].forEach(function(x){
+    if(!S.items.some(function(i){return i.id===x.id})){x.we=1;S.items.push(x)}
+  });
+  S.v=3;
+  try{localStorage.setItem("agenda-v2",JSON.stringify(S))}catch(e){}
+}
+S.hide=S.hide||{};
+if((S.v||1)<4){
+  var WK4=["d1","d2","d3","d4","d5","d6"];
+  DEF.forEach(function(d){if(!S.items.some(function(i){return i.id===d.id})){var c=JSON.parse(JSON.stringify(d));if(WK4.indexOf(c.id)>-1)c.wk=1;S.items.push(c)}});
+  [{id:"w1",t:"10:30",n:"Levantarme y desayunar"},{id:"w2",t:"11:00",n:"Comprar la comida y recados"},{id:"w3",t:"12:00",n:"Bloque 1: estudiar programación",main:1},{id:"w4",t:"13:30",n:"Almuerzo y descanso"},{id:"w5",t:"14:00",n:"Bloque 2: practicar ejercicios",main:1}].forEach(function(x){if(!S.items.some(function(i){return i.id===x.id})){x.we=1;S.items.push(x)}});
+  S.v=4;
+  try{localStorage.setItem("agenda-v2",JSON.stringify(S))}catch(e){}
+}
 function save(){try{localStorage.setItem("agenda-v2",JSON.stringify(S))}catch(e){}}
 function key(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function parse(k){var p=k.split("-");return new Date(+p[0],+p[1]-1,+p[2])}
@@ -132,10 +152,12 @@ var now=new Date(),todayK=key(now),sel=todayK,cur=new Date(now.getFullYear(),now
 function applies(it,k){
   if(it.date)return it.date===k;
   if(it.wk){var d=parse(k).getDay();return d>=1&&d<=5}
+  if(it.we){var e=parse(k).getDay();return e===0||e===6}
   return true;
 }
-function list(k){return S.items.filter(function(i){return applies(i,k)}).sort(function(a,b){return a.t<b.t?-1:a.t>b.t?1:0})}
+function list(k){return S.items.filter(function(i){return applies(i,k)&&!isHidden(k,i.id)}).sort(function(a,b){return a.t<b.t?-1:a.t>b.t?1:0})}
 function isDone(k,id){return !!(S.done[k]&&S.done[k][id])}
+function isHidden(k,id){return !!(S.hide&&S.hide[k]&&S.hide[k].indexOf(id)>-1)}
 function pctOf(k){var l=list(k);if(!l.length)return 0;return l.filter(function(i){return isDone(k,i.id)}).length/l.length}
 function mainDone(k){return list(k).some(function(i){return i.main&&isDone(k,i.id)})}
 function $(id){return document.getElementById(id)}
@@ -159,12 +181,14 @@ function renderDay(){
   var l=list(sel),h="";
   l.forEach(function(i){
     var on=isDone(sel,i.id);
-    h+='<div class="item"><button class="chk'+(i.main?' main':'')+(on?' on':'')+'" aria-pressed="'+on+'" aria-label="'+i.n+'" data-id="'+i.id+'">'+(on?'✓':'')+'</button><span class="time">'+fmt(i.t)+'</span><span class="name'+(on?' off':'')+'">'+i.n+'</span><button class="x" data-x="'+i.id+'">'+(armed===i.id?'¿seguro?':'quitar')+'</button></div>';
+    h+='<div class="item"><button class="chk'+(i.main?' main':'')+(on?' on':'')+'" aria-pressed="'+on+'" aria-label="'+i.n+'" data-id="'+i.id+'">'+(on?'✓':'')+'</button><span class="time">'+fmt(i.t)+'</span><span class="name'+(on?' off':'')+'">'+i.n+'</span><span class="acts"><button class="x" data-h="'+i.id+'">quitar de este día</button>'+(i.date?'':'<button class="x" data-x="'+i.id+'">'+(armed===i.id?'¿seguro de borrarla siempre?':'borrar de todos los días')+'</button>')+'</span></div>';
   });
   $("items").innerHTML=h||'<p class="note">No hay tareas para este día. Agrega una abajo.</p>';
   $("items").querySelectorAll(".chk").forEach(function(b){b.onclick=function(){
     S.done[sel]=S.done[sel]||{};S.done[sel][b.dataset.id]=!S.done[sel][b.dataset.id];save();render()}});
-  $("items").querySelectorAll(".x").forEach(function(b){b.onclick=function(){
+  $("items").querySelectorAll(".x[data-h]").forEach(function(b){b.onclick=function(){
+    S.hide=S.hide||{};S.hide[sel]=S.hide[sel]||[];S.hide[sel].push(b.dataset.h);armed=null;save();render()}});
+  $("items").querySelectorAll(".x[data-x]").forEach(function(b){b.onclick=function(){
     var id=b.dataset.x;
     if(armed===id){S.items=S.items.filter(function(i){return i.id!==id});armed=null;save()}else armed=id;
     render()}});
@@ -181,7 +205,13 @@ function renderStats(){
   for(var i=1;i<=last;i++){var dd=new Date(cur.getFullYear(),cur.getMonth(),i);if(dd>now)break;s+=pctOf(key(dd));c++}
   $("mes").textContent=c?Math.round(s/c*100)+"%":"0%";
 }
-function render(){renderCal();renderDay();renderStats()}
+function renderHidden(){
+  var ids=(S.hide&&S.hide[sel])||[],h="";
+  S.items.forEach(function(i){if(applies(i,sel)&&ids.indexOf(i.id)>-1)h+='<button class="btn" data-r="'+i.id+'">+ '+i.n+'</button>'});
+  $("hid").innerHTML=h?'<p class="note">Quitadas de este día (toca para volver a ponerlas):</p><div class="rest">'+h+'</div>':'';
+  $("hid").querySelectorAll("[data-r]").forEach(function(b){b.onclick=function(){S.hide[sel]=S.hide[sel].filter(function(x){return x!==b.dataset.r});save();render()}});
+}
+function render(){renderCal();renderDay();renderHidden();renderStats()}
 
 $("prev").onclick=function(){cur=new Date(cur.getFullYear(),cur.getMonth()-1,1);render()};
 $("next").onclick=function(){cur=new Date(cur.getFullYear(),cur.getMonth()+1,1);render()};
